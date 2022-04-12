@@ -8,7 +8,7 @@ from torch.utils.data import IterableDataset
 class MeliChallengeDataset(IterableDataset):
     def __init__(self,
                  dataset_path,
-                 random_buffer_size=2048):
+                 random_buffer_size=2048, sample_size=None):
         assert random_buffer_size > 0
         self.dataset_path = dataset_path
         self.random_buffer_size = random_buffer_size
@@ -18,6 +18,9 @@ class MeliChallengeDataset(IterableDataset):
             self.n_labels = item["n_labels"]
             self.dataset_size = item["size"]
 
+            if (sample_size!=None): 
+                self.dataset_size= sample_size
+
     def __len__(self):
         return self.dataset_size
 
@@ -26,7 +29,11 @@ class MeliChallengeDataset(IterableDataset):
             with gzip.open(self.dataset_path, "rt") as dataset:
                 shuffle_buffer = []
 
-                for line in dataset:
+                for count, line in enumerate(dataset):
+
+                    if count > self.dataset_size:
+                        break
+                    
                     item = json.loads(line.strip())
                     item = {
                         "data": item["data"],

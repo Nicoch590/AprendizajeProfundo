@@ -14,6 +14,7 @@ from tqdm import tqdm, trange
 
 from .dataset import MeliChallengeDataset
 from .utils import PadSequences
+from .Models import MLPClassifier, NNClassifier, LSTM_class
 
 
 logging.basicConfig(
@@ -21,62 +22,13 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-EPOCHS = 2
-FILTERS_COUNT = 100
-FILTERS_LENGTH = [2, 3, 4]
-
-pad_sequences = PadSequences(min_length=max(FILTERS_LENGTH))
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True,
-                          collate_fn=pad_sequences, drop_last=False)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False,
-                         collate_fn=pad_sequences, drop_last=False)
 
 
-class NNClassifier(nn.Module):
-    def __init__(self,
-                 pretrained_embeddings_path,
-                 token_to_index,
-                 n_labels,
-                 hidden_layers=[256, 128],
-                 dropout=0.3,
-                 vector_size=300,
-                 freeze_embedings=True):
-         super().__init__()
-         with gzip.open(token_to_index, "rt") as fh:
-              token_to_index = json.load(fh)
-         embeddings_matrix = torch.randn(len(token_to_index), vector_size)
-         embeddings_matrix[0] = torch.zeros(vector_size)
-         with gzip.open(pretrained_embeddings_path, "rt") as fh:
-              next(fh)
-              for line in fh:
-                  word, vector = line.strip().split(None, 1)
-                  if word in token_to_index:
-                       embeddings_matrix[token_to_index[word]] =\
-                          torch.FloatTensor([float(n) for n in vector.split()])
-         self.embeddings = nn.Embedding.from_pretrained(embeddings_matrix,
-                                                       freeze=freeze_embedings,
-                                                       padding_idx=0)
-         self.convs = []
-         for filter_lenght in FILTERS_LENGTH:
-             self.convs.append(
-                 nn.Conv1d(vector_size, FILTERS_COUNT, filter_lenght)
-             )
-             self.convs = nn.ModuleList(self.convs)
-             self.fc = nn.Linear(FILTERS_COUNT * len(FILTERS_LENGTH), 128)
-             self.output = nn.Linear(128, 1)
-             self.vector_size = vector_size
-
-    @staticmethod
-    def conv_global_max_pool(x, conv):
-        return F.relu(conv(x).transpose(1, 2).max(1)[0])
-
-    def forward(self, x):
-        x = self.embeddings(x).transpose(1, 2)  # Conv1d takes (batch, channel, seq_len)
-        x = [self.conv_global_max_pool(x, conv) for conv in self.convs]
-        x = torch.cat(x, dim=1)
-        x = F.relu(self.fc(x))
-        x = torch.sigmoid(self.output(x))
-        return x
+#pad_sequences = PadSequences(min_length=max(FILTERS_LENGTH))
+#train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True,
+#                          collate_fn=pad_sequences, drop_last=False)
+#test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False,
+#                         collate_fn=pad_sequences, drop_last=False)
 
 
 if __name__ == "__main__":
@@ -84,6 +36,10 @@ if __name__ == "__main__":
     parser.add_argument("--train-data",
                         help="Path to the the training dataset",
                         required=True)
+    parser.add_argument("--sample_size",
+                         default=None,
+                         type=int )
+
     parser.add_argument("--token-to-index",
                         help="Path to the the json file that maps tokens to indices",
                         required=True)
@@ -115,22 +71,31 @@ if __name__ == "__main__":
                         default=3,
                         type=int)
 
+    parser.add_argument("--model",
+                        help="MLPClassifier, NNClassifier, LSTM_class",
+                        default='MLPClassifier'
+                        )
+                    
+
     args = parser.parse_args()
+
+    BATCH_SIZE=256
 
     pad_sequences = PadSequences(
         pad_value=0,
-        max_length=None,
+        max_length=12 ,# if args.model=='LSTM_class' else None,
         min_length=1
     )
 
     logging.info("Building training dataset")
     train_dataset = MeliChallengeDataset(
         dataset_path=args.train_data,
-        random_buffer_size=2048  # This can be a hypterparameter
+        random_buffer_size=2048,  # This can be a hypterparameter
+        sample_size=args.sample_size
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=128,  # This can be a hyperparameter
+        batch_size=BATCH_SIZE,  # This can be a hyperparameter
         shuffle=False,
         collate_fn=pad_sequences,
         drop_last=False
@@ -140,11 +105,12 @@ if __name__ == "__main__":
         logging.info("Building validation dataset")
         validation_dataset = MeliChallengeDataset(
             dataset_path=args.validation_data,
-            random_buffer_size=1
+            random_buffer_size=1,
+            sample_size=args.sample_size 
         )
         validation_loader = DataLoader(
             validation_dataset,
-            batch_size=128,
+            batch_size=BATCH_SIZE,
             shuffle=False,
             collate_fn=pad_sequences,
             drop_last=False
@@ -157,11 +123,11 @@ if __name__ == "__main__":
         logging.info("Building test dataset")
         test_dataset = MeliChallengeDataset(
             dataset_path=args.test_data,
-            random_buffer_size=1
-        )
+            random_buffer_size=1,
+            )#sample_size=int(args.sample_size * 0.1))
         test_loader = DataLoader(
             test_dataset,
-            batch_size=128,
+            batch_size=BATCH_SIZE,
             shuffle=False,
             collate_fn=pad_sequences,
             drop_last=False
@@ -170,29 +136,94 @@ if __name__ == "__main__":
         test_dataset = None
         test_loader = None
 
-    mlflow.set_experiment(f"diplodatos.{args.language}")
+    mlflow.set_experiment(f"diplodatos.Meli2019") #{args.language}
 
     with mlflow.start_run():
         logging.info("Starting experiment")
-        # Log all relevent hyperparameters
-        mlflow.log_params({
-            "model_type": "Red convolucional",
-            "embeddings": args.pretrained_embeddings,
-            "hidden_layers": args.hidden_layers,
-            "dropout": args.dropout,
-            "embeddings_size": args.embeddings_size,
-            "epochs": args.epochs
-        })
-        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-        logging.info("Red convolucional Clasificadora")
-        model = NNClassifier(pretrained_embeddings_path,
-                 token_to_index,
-                 n_labels,
-                 hidden_layers=[256, 128],
-                 dropout=0.3,
-                 vector_size=300,
-                 freeze_embedings=True )
+        mlflow.log_params({
+                "Sample_size":args.sample_size ,              
+            })
+        if args.model=='MLPClassifier':
+            # Log all relevent hyperparameters
+            mlflow.log_params({
+                "model_type": "Multilayer Perceptron",
+                "embeddings": args.pretrained_embeddings,
+                "hidden_layers": args.hidden_layers,
+                "dropout": args.dropout,
+                "embeddings_size": args.embeddings_size,
+                "epochs": args.epochs
+            })
+            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+            logging.info(args.model)
+            model = MLPClassifier(
+                pretrained_embeddings_path=args.pretrained_embeddings,
+                token_to_index=args.token_to_index,
+                n_labels=train_dataset.n_labels,
+                hidden_layers=args.hidden_layers,
+                dropout=args.dropout,
+                vector_size=args.embeddings_size,
+                freeze_embedings=True  # This can be a hyperparameter
+            )
+        if args.model=='NNClassifier':
+
+            Filters_count= 200
+            Filters_lenght = [2, 3, 4, 5]
+            # Log all relevent hyperparameters
+            mlflow.log_params({
+                "model_type": "Red convolucional",
+                "embeddings": args.pretrained_embeddings,
+                "FILTERS_COUNT":Filters_count,
+                "FILTERS_LENGTH": Filters_lenght,
+                "hidden_layers": args.hidden_layers,
+                "dropout": args.dropout,
+                "embeddings_size": args.embeddings_size,
+                "epochs": args.epochs
+            })
+            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+            logging.info(args.model)
+            model = NNClassifier(pretrained_embeddings_path=args.pretrained_embeddings,
+                    token_to_index=args.token_to_index,
+                    n_labels=train_dataset.n_labels,
+                    FILTERS_COUNT=Filters_count,
+                    FILTERS_LENGTH = Filters_lenght,
+                    # hidden_layers=[256, 128],
+                    dropout=args.dropout,
+                    vector_size=args.embeddings_size,
+                    freeze_embedings=True )
+
+        if args.model=='LSTM_class':
+            HID_layers=64
+            Num_layers=1
+            # Log all relevent hyperparameters
+            
+            mlflow.log_params({
+                "model_type": "Red LSTM",
+                "embeddings": args.pretrained_embeddings,
+                "hidden_layer": HID_layers,
+                "num_layers": Num_layers,
+                "dropout": args.dropout,
+                "bidirectional":True ,
+                "embeddings_size": args.embeddings_size,
+                "epochs": args.epochs
+            })
+            device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+            logging.info(args.model)
+            model = LSTM_class(pretrained_embeddings_path=args.pretrained_embeddings,
+                    token_to_index=args.token_to_index,
+                    n_labels=train_dataset.n_labels,
+                    hidden_layer=HID_layers,
+                    num_layers=Num_layers,
+                    dropout= args.dropout,
+                    vector_size=args.embeddings_size,
+                    freeze_embedings=True,
+                    bidirectional=True )          
+
+                   
+        
 
         model = model.to(device)
         loss = nn.CrossEntropyLoss()

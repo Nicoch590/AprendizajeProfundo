@@ -1,0 +1,8 @@
+Prueba con 100k LSTM
+python -m experiment.practico --train-data ./data/meli-challenge-2019/spanish.train.jsonl.gz --sample_size 100000 --test-data ./data/meli-challenge-2019/spanish.test.jsonl.gz --token-to-index ./data/meli-challenge-2019/spanish_token_to_index.json.gz --pretrained-embeddings ./data/Embedding_Meli2019_word2vec.txt.gz --language spanish --validation-data ./data/meli-challenge-2019/spanish.validation.jsonl.gz --embeddings-size 50 --dropout 0.3 --epochs 10 --model LSTM_class
+
+Prueba con 100k CCN
+python -m experiment.practico --train-data ./data/meli-challenge-2019/spanish.train.jsonl.gz --sample_size 100000 --test-data ./data/meli-challenge-2019/spanish.test.jsonl.gz --token-to-index ./data/meli-challenge-2019/spanish_token_to_index.json.gz --pretrained-embeddings ./data/Embedding_Meli2019_word2vec.txt.gz --language spanish --validation-data ./data/meli-challenge-2019/spanish.validation.jsonl.gz --embeddings-size 50 --dropout 0.3 --epochs 10 --model NNClassifier
+
+Prueba con 100k MLP
+python -m experiment.practico --train-data ./data/meli-challenge-2019/spanish.train.jsonl.gz --sample_size 100000 --test-data ./data/meli-challenge-2019/spanish.test.jsonl.gz --token-to-index ./data/meli-challenge-2019/spanish_token_to_index.json.gz --pretrained-embeddings ./data/Embedding_Meli2019_word2vec.txt.gz --language spanish --validation-data ./data/meli-challenge-2019/spanish.validation.jsonl.gz --embeddings-size 50 --dropout 0.3 --epochs 10 --model MLPClassifier

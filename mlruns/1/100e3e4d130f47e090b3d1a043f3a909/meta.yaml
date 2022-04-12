@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/Usuario/Desktop/Repo%20Aprendizaje%20Profundo/AprendizajeProfundo/mlruns/1/100e3e4d130f47e090b3d1a043f3a909/artifacts
+end_time: 1648750876800
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+name: ''
+run_id: 100e3e4d130f47e090b3d1a043f3a909
+run_uuid: 100e3e4d130f47e090b3d1a043f3a909
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1648750716415
+status: 3
+tags: []
+user_id: Usuario

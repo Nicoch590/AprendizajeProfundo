@@ -113,7 +113,8 @@ slurm*.out
 submit_job_slurm.sh
 logs/
 martin_fierro.txt
-mlruns
-data/
+#mlruns
+#data/
+data/meli-challenge-2019
 .vscode/
 .*.sw*
